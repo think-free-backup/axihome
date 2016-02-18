@@ -1,0 +1,10 @@
+{
+    "Type" : "backend",
+    "MultiInstances" : true,
+    "InstancesParams" : {
+            "serverIp" : "192.168.1.1",
+            "serverPort" : "2015"
+        },
+    "ConfigFiles" : [],
+    "Note" : ""
+}

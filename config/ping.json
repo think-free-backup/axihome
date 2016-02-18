@@ -1,0 +1,9 @@
+{
+    "Type" : "backend",
+    "MultiInstances" : false,
+    "InstancesParams" : [
+            {"name" : "hostname", "ip": "192.168.1.1"}
+        ],
+    "ConfigFiles" : [],
+    "Note" : ""
+}

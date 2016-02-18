@@ -1,0 +1,18 @@
+# /etc/systemd/system/axihome.service
+# systemctl enable axihome
+
+[Unit]
+Description=Axihome home automation server
+Wants=network-online.target
+After=network.target
+
+[Service]
+User=root
+Group=root
+WorkingDirectory=/srv/axihome
+ExecStart=/srv/axihome/axihome
+Restart=always
+StandardOutput=null
+
+[Install]
+WantedBy=multi-user.target

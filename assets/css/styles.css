@@ -1,0 +1,37 @@
+
+body{
+
+    background-color: #CCC;
+}
+
+h1 {
+
+    color: #333;
+}
+
+ul {
+
+	list-style-type: none;
+}
+
+.name{
+
+    color: #333;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.control{
+
+	margin: 10px;
+}
+
+.running{
+
+	color: #090;
+}
+
+.stopped{
+
+	color: #900;
+}
