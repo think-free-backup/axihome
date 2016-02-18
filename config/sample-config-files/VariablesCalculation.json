@@ -1,0 +1,3 @@
+{
+    "analogvar-1" :  {"formula" : "PercentMinMax", "params" : {"min" : "heating.deposit.min", "max" : "heating.deposit.max"} ,"write" : "heating.deposit.percent"}
+}

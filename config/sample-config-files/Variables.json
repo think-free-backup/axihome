@@ -1,0 +1,3 @@
+{
+    "bool.notif.mainpowerlost.tg.user" : {"shortname" : "", "name" : "", "backend" : "virtual" , "type" : "bool" , "default" : true, "analog" : false},
+}

@@ -1,0 +1,3 @@
+{
+    "mainups.ups.status" : [{"cond" : "!=", "val" : "OL", "notif" : "mainpowerlost"}, {"cond" : "=", "val" : "OL", "notif" : "mainpowerback"}]
+}

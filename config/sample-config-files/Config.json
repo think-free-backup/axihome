@@ -1,0 +1,13 @@
+{
+    "buckets" : [
+    
+        "NotificationGeneral", 
+        "NotificationMessages", 
+        "NotificationMessagesSubscriptions", 
+        "NotificationDevices", 
+        "VariablesNotification", 
+        "VariablesBinding", 
+        "VariablesCalculation", 
+        "WearableVoiceAction"
+    ]
+}

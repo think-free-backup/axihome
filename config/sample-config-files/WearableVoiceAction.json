@@ -1,0 +1,10 @@
+{
+    "lights" : {
+
+        "bedroom" : {
+
+            "turn on" : {"k" : "lightvariableforbedroom", "v" : "1", "notification" : ""},
+            "turn off" : {"k" : "lightvariableforbedroom", "v" : "0", "notification" : ""}
+        }
+    }
+}

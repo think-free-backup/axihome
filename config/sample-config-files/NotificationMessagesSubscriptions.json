@@ -1,0 +1,3 @@
+{
+    "mainpowerlost" : [ {"dev": "Tg_USER", "type" : "mediumText", "active" : "bool.notif.mainpowerlost.tg.user"} ]
+}
