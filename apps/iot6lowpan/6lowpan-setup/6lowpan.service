@@ -1,0 +1,13 @@
+# /etc/systemd/system/6lowpan.service
+# systemctl enable 6lowpan
+
+[Unit]
+Description=6lowpan
+After=multi-user.target
+
+[Service]
+Type=idle
+ExecStart=/bin/bash /srv/6lowpan/6lowpan.sh
+
+[Install]
+WantedBy=multi-user.target

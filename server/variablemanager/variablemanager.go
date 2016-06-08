@@ -1,6 +1,7 @@
 package variablemanager
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -168,6 +169,26 @@ func (vm *VariableManager) GetAll(bucket string) map[string]interface{} {
 			retmap[string(k)] = value
 			return nil
 		})
+
+		return nil
+	})
+
+	return retmap
+}
+
+func (vm *VariableManager) GetRange(bucket, start, end string) interface{} {
+
+	retmap := make(map[string]interface{})
+
+	vm.db.View(func(tx *bolt.Tx) error {
+
+		c := tx.Bucket([]byte(bucket)).Cursor()
+
+		for k, v := c.Seek([]byte(start)); k != nil && bytes.Compare(k, []byte(end)) <= 0; k, v = c.Next() {
+			var value interface{}
+			json.Unmarshal(v, &value)
+			retmap[string(k)] = value
+		}
 
 		return nil
 	})

@@ -1,0 +1,16 @@
+
+Copy folder overlay and bin to raapberry pi and copy 6lowpan.sh and .service to raspberry pi
+----------------------------------------------------------------------------------------------
+
+apt-get install libnl-3-dev
+cp bin/* /usr/bin/
+cp overlay/mrf24j40-overlay.dtb /boot/overlays/
+
+echo "dtoverlay=mrf24j40" >> /boot/config.txt
+echo "dtoverlay=w1-gpio" >> /boot/config.txt
+
+mkdir /srv/6lowpan
+mv 6lowpan.sh /srv/6lowpan
+chmod 777 /srv/6lowpan/6lowpan.sh
+mv 6lowpan.service /etc/systemd/system/6lowpan.service
+systemctl enable iot6lowpan

@@ -46,7 +46,7 @@ type AxihomeServer struct {
 	frontendClientState     chan jsonrpcserver.ClientState    // Channel for client state
 }
 
-func New() *AxihomeServer {
+func New(configPath string) *AxihomeServer {
 
 	// Creation of server struct
 
@@ -72,7 +72,7 @@ func New() *AxihomeServer {
 		backendClientState:     make(chan jsonrpcserver.ClientState),
 	}
 
-	server.appHandler = axihomehandler.New(&server.appHandlerChannel)
+	server.appHandler = axihomehandler.New(&server.appHandlerChannel, configPath)
 
 	// Maps of channels by destination to handle routing
 

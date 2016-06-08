@@ -1,0 +1,18 @@
+# /etc/systemd/system/voicenotifier.service
+# systemctl enable voicenotifier
+
+[Unit]
+Description=Iot6lowpan Sensor
+Wants=network-online.target
+After=network.target
+
+[Service]
+User=root
+Group=root
+WorkingDirectory=/srv/voicenotifier
+ExecStart=/srv/voicenotifier/voicenotifier -lang fr_FR
+Restart=always
+StandardOutput=null
+
+[Install]
+WantedBy=multi-user.target

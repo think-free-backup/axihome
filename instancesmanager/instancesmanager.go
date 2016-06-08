@@ -3,10 +3,13 @@ package instancesmanager
 import (
 	"archive/zip"
 	"encoding/json"
-	"html/template"
+
+	"fmt"
 	"net/http"
 	"os"
 	"os/exec"
+	"runtime"
+	"time"
 
 	"github.com/remyoudompheng/go-misc/zipfs"
 
@@ -21,6 +24,7 @@ type InstanceManager struct {
 
 	instances InstanceMap
 
+	develMode         bool
 	sendChannel       chan []byte
 	stateChannel      chan *jsonrpcmessage.StateBody
 	rpcMessageChannel chan *jsonrpcmessage.RpcMessage
@@ -30,9 +34,11 @@ type InstanceManager struct {
 /* Instance manager */
 /* ******************************************** */
 
-func New() *InstanceManager {
+func New(dev bool) *InstanceManager {
 
 	var im *InstanceManager = &InstanceManager{}
+
+	im.develMode = dev
 
 	im.sendChannel = make(chan []byte)
 	im.stateChannel = make(chan *jsonrpcmessage.StateBody)
@@ -50,12 +56,13 @@ func (im *InstanceManager) Run() {
 	log.Println("Axihome instance manager listening on port 3340")
 
 	http.HandleFunc("/", im.ziphandler)
-	http.HandleFunc("/simple", im.webhandler)
 	http.HandleFunc("/getstate", im.statehandler)
 	http.HandleFunc("/start", im.starthandler)
 	http.HandleFunc("/stop", im.stophandler)
 	http.HandleFunc("/restart", im.restarthandler)
 	http.HandleFunc("/reload", im.reloadhandler)
+	http.HandleFunc("/stats", im.statsHandler)
+
 	http.ListenAndServe(":3340", nil)
 }
 
@@ -80,6 +87,9 @@ func (im *InstanceManager) channelHandler() {
 					if im.instances == nil {
 
 						im.instances = make(InstanceMap)
+
+					} else {
+						return
 					}
 
 					instances := params["content"].(map[string]interface{})
@@ -114,7 +124,7 @@ func (im *InstanceManager) channelHandler() {
 
 							im.instances[instance.Backend+"-"+instance.Name] = &instance
 
-							if instance.Run {
+							if instance.Run && !im.develMode {
 
 								im.startProcess(instance.Backend, instance.Name)
 							}
@@ -130,7 +140,6 @@ func (im *InstanceManager) channelHandler() {
 
 						if !v {
 
-							log.Println(v)
 							log.Println("Instance manager : Stopping : " + k)
 							im.stopProcess(im.instances[k].Backend, im.instances[k].Name)
 							delete(im.instances, k) // TODO : FIXME : CRASH
@@ -165,7 +174,12 @@ func (im *InstanceManager) startProcess(process, instance string) {
 
 	pname := process + "-" + instance
 
-	if im.instances[pname].Process != nil {
+	if _, ok := im.instances[pname]; !ok {
+
+		log.Println("Can't find instance : " + pname)
+	}
+
+	if im.instances[pname].ProcessRunning {
 
 		log.Println("Can't start process, already started : " + pname)
 		return
@@ -218,6 +232,9 @@ func (im *InstanceManager) startProcess(process, instance string) {
 				log.Println("Process : " + process + " stopped")
 				if err != nil {
 					log.Println("    |-> with error :", err)
+
+					log.Println("    |-> desactivating process for 10 minutes")
+					time.Sleep(10 * time.Minute)
 				}
 			}
 		}
@@ -276,9 +293,25 @@ func (im *InstanceManager) statehandler(w http.ResponseWriter, r *http.Request) 
 	w.Write(js)
 }
 
+func (im *InstanceManager) statsHandler(w http.ResponseWriter, r *http.Request) {
+
+	var mem runtime.MemStats
+	runtime.ReadMemStats(&mem)
+
+	str := fmt.Sprintf("Version : %s \nRoutines : %d\nMem Alloc : %d\nMem TotalAlloc : %d\nMem HeapAlloc : %d\nMem HeapSys %d",
+		runtime.Version(),
+		runtime.NumGoroutine(),
+		mem.Alloc,
+		mem.TotalAlloc,
+		mem.HeapAlloc,
+		mem.HeapSys)
+
+	w.Write([]byte(str))
+}
+
 func (im *InstanceManager) ziphandler(w http.ResponseWriter, r *http.Request) {
 
-	zippath := "axihome.assets"
+	zippath := "assets/axihome.assets"
 
 	z, err := zip.OpenReader(zippath)
 	if err != nil {
@@ -290,89 +323,6 @@ func (im *InstanceManager) ziphandler(w http.ResponseWriter, r *http.Request) {
 	r.URL.Path = "/assets/" + r.URL.Path
 
 	http.FileServer(zipfs.NewZipFS(&z.Reader)).ServeHTTP(w, r)
-}
-
-func (im *InstanceManager) webhandler(w http.ResponseWriter, r *http.Request) {
-
-	t, _ := template.New("index").Parse(`
-		<!DOCTYPE HTML>
-
-		<html>
-
-		<head>
-		<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-		<title>Axihome manager</title>
-		<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
-
-		<style>
-		body {
-		    background-color: #999999;
-		    margin-left: 40px;
-		    margin-right: 40px;
-		}
-
-		h1 {
-		    color: #aaaaaa;
-		} 
-
-		.start {
-
-			background-color: green;
-			margin-left: 5px;
-			padding: 3px;
-			cursor:pointer;
-		}
-
-		.stop {
-
-			background-color: red;
-			margin-left: 5px;
-			padding: 3px;
-			cursor:pointer;
-		}
-
-		.restart {
-
-			background-color: orange;
-			margin-left: 5px;
-			padding: 3px;
-			cursor:pointer;
-		}
-
-		</style>
-
-		</head>
-
-		<body>
-
-		<h1>Axihome manager</h1>
-
-		<ul>
-		{{ range . }}
-   			<li><strong> {{ .Name }} </strong> running : {{ .ProcessRunning }}  <span class="start" onclick="start('{{ .Backend }}', '{{ .Name }}')"> Start </span> <span class="stop" onclick="stop('{{ .Backend }}', '{{ .Name }}')"> Stop </span> <span class="restart" onclick="restart('{{ .Backend }}', '{{ .Name }}')"> Restart </span> </li>
-		{{ end }}
-		</ul>
-
-		<script type="text/javascript">
-			function start(backend, instance) {
-				xmlhttp = new XMLHttpRequest();
-				xmlhttp.open("GET", "start?process="+backend+"&instance=" + instance, true);
-    			xmlhttp.send();
-			}
-			function stop(backend, instance) {
-				xmlhttp = new XMLHttpRequest();
-				xmlhttp.open("GET", "stop?process="+backend+"&instance=" + instance, true);
-    			xmlhttp.send();
-			}
-			function restart(backend, instance) {
-				xmlhttp = new XMLHttpRequest();
-				xmlhttp.open("GET", "restart?process="+backend+"&instance=" + instance, true);
-    			xmlhttp.send();
-			}
-		</script>
-
-		</body>`)
-	t.Execute(w, im.instances)
 }
 
 func (im *InstanceManager) starthandler(w http.ResponseWriter, r *http.Request) {

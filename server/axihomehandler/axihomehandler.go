@@ -18,9 +18,11 @@ type Handler struct {
 	bucketList map[string]*variablemanager.VariableManager
 	sendChan   *chan jsonrpcmessage.RoutedMessage
 	analogic   map[string]interface{}
+
+	mapping map[string]string
 }
 
-func New(sendChan *chan jsonrpcmessage.RoutedMessage) *Handler {
+func New(sendChan *chan jsonrpcmessage.RoutedMessage, configPath string) *Handler {
 
 	appHandler := &Handler{}
 
@@ -30,9 +32,11 @@ func New(sendChan *chan jsonrpcmessage.RoutedMessage) *Handler {
 
 	// Create  db and buckets
 
-	vmgeneraldb := variablemanager.New("axihome.db")
+	vmgeneraldb := variablemanager.New(configPath + "/axihome.db")
 	appHandler.generaldb = vmgeneraldb
 	appHandler.RegisterBucket("Variables")
+	appHandler.RegisterBucket("VariablesAddrMapping")
+
 	appHandler.RegisterBucket("Instances")
 	appHandler.RegisterBucket("Config")
 
@@ -52,15 +56,10 @@ func New(sendChan *chan jsonrpcmessage.RoutedMessage) *Handler {
 		log.Println("Can't read bucket")
 	}
 
-	appHandler.RegisterBucket("NotificationGeneral")
-	appHandler.RegisterBucket("NotificationMessages")
-	appHandler.RegisterBucket("NotificationMessagesSubscriptions")
-	appHandler.RegisterBucket("NotificationDevices")
-	appHandler.RegisterBucket("VariablesNotification")
-
 	// Realtime database
 
-	vmrtdb := variablemanager.New("axihome-rtdb.db")
+	vmrtdb := variablemanager.New(configPath + "/axihome-rtdb.db")
+
 	appHandler.rtdb = vmrtdb
 
 	vmrtdb.CreateBucket("RealtimeDB")
@@ -68,7 +67,8 @@ func New(sendChan *chan jsonrpcmessage.RoutedMessage) *Handler {
 
 	// Historic database
 
-	vmhistorydb := variablemanager.New("axihome-history.db")
+	vmhistorydb := variablemanager.New(configPath + "/axihome-history.db")
+
 	appHandler.historydb = vmhistorydb
 
 	vmhistorydb.CreateBucket("History")
@@ -138,6 +138,8 @@ func New(sendChan *chan jsonrpcmessage.RoutedMessage) *Handler {
 
 	appHandler.generateRtdbMissingValues()
 
+	appHandler.generateKeyAddrMapping()
+
 	// Return the Handler
 
 	return appHandler
@@ -177,6 +179,34 @@ func (handler *Handler) generateRtdbMissingValues() {
 	}
 }
 
+func (handler *Handler) generateKeyAddrMapping() {
+
+	log.Println("Generating key mapping for variables")
+
+	handler.mapping = make(map[string]string)
+
+	bucket := handler.bucketList["Variables"]
+	if bucket == nil {
+
+		log.Println("Can't find Variables bucket")
+		return
+	}
+
+	bucketcontent := bucket.GetAll("Variables")
+
+	for k, v := range bucketcontent {
+
+		addr := v.(map[string]interface{})["addr"].(string)
+		if addr != "" {
+
+			handler.mapping[addr] = k
+		} else {
+
+			handler.mapping[k] = k
+		}
+	}
+}
+
 /* Type handlers */
 /* ************************************************************** */
 
@@ -187,216 +217,282 @@ func (handler *Handler) Rpc(mes jsonrpcmessage.RoutedMessage) error {
 		return err
 	}
 
-	request := body.Module + "." + body.Fct
+	if body.Module == "variables" {
 
-	switch request {
+		switch body.Fct {
 
-	/* Variables */
-	/* ***************************************** */
+		case "set": // set variable (variable changed in backend -> bucket)
 
-	// Application variables managment - set variable (variable changed in backend -> bucket)
-	case "variables.set":
+			go func() {
 
-		log.Debug("Variable set request")
+				log.Debug("Variable set request")
 
-		now := strconv.FormatInt(time.Now().Unix(), 10)
+				now := strconv.FormatInt(time.Now().Unix(), 10)
 
-		if body.Params == nil {
-			return nil
-		}
-
-		for k, v := range body.Params.(map[string]interface{}) {
-
-			if handler.rtdb.Get("RealtimeDB", k) == v {
-
-				log.Debug("Variable " + k + " is the same not updating")
-				continue
-			}
-
-			log.Debug("Setting variable :", k, "to", v)
-
-			params := make(map[string]interface{})
-			params[k] = v
-			body.Params = params
-
-			mesCore := jsonrpcmessage.NewRoutedMessage("rpc", body, "axihome", "*.core.axihome")
-			mesFrontend := jsonrpcmessage.NewRoutedMessage("rpc", body, "axihome", "*.frontend.axihome")
-			*handler.sendChan <- *mesCore
-			*handler.sendChan <- *mesFrontend
-
-			handler.rtdb.Set("RealtimeDB", k, v)
-
-			vari := handler.generaldb.Get("Variables", k)
-
-			if vari == nil {
-
-				log.Println("Variable : ", k, "doesn't exists")
-				return nil
-			}
-
-			if !vari.(map[string]interface{})["analog"].(bool) {
-
-				historyvar := make(map[string]interface{})
-				historyvar["Key"] = k
-				historyvar["Value"] = v
-
-				err := handler.historydb.Set("History", now, historyvar)
-				if err != nil {
-
-					log.Println("Can't save history :", now, "->", historyvar)
+				if body.Params == nil {
+					return
 				}
-			} else {
 
-				handler.analogic[k] = v
-			}
+				for k, v := range body.Params.(map[string]interface{}) {
 
-			log.Debug("Variable " + k + " saved")
+					vname := handler.mapping[k]
+					vconf := handler.generaldb.Get("Variables", vname)
+
+					if vconf == nil {
+
+						log.Println("Variable not found : addr '" + k + "' variable name '" + k + "' not found")
+						continue
+					}
+
+					if handler.rtdb.Get("RealtimeDB", vname) == v {
+
+						log.Debug("Variable set " + vname + " is the same not updating")
+						continue
+					}
+
+					log.Debug("Setting variable :", vname, "to", v)
+
+					params := make(map[string]interface{})
+					params[vname] = v
+					body.Params = params
+
+					mesCore := jsonrpcmessage.NewRoutedMessage("rpc", body, "axihome", "*.core.axihome")
+					mesFrontend := jsonrpcmessage.NewRoutedMessage("rpc", body, "axihome", "*.frontend.axihome")
+					*handler.sendChan <- *mesCore
+					*handler.sendChan <- *mesFrontend
+
+					handler.rtdb.Set("RealtimeDB", vname, v)
+
+					if !vconf.(map[string]interface{})["analog"].(bool) {
+
+						historyvar := make(map[string]interface{})
+						historyvar["Key"] = vname
+						historyvar["Value"] = v
+
+						err := handler.historydb.Set("History", now, historyvar)
+						if err != nil {
+
+							log.Println("Can't save history :", now, "->", historyvar)
+						}
+					} else {
+
+						handler.analogic[vname] = v
+					}
+
+					log.Debug("Variable set " + vname + " saved")
+				}
+
+			}()
+
+		case "write": // write variable (from app to backend)
+
+			go func() {
+
+				for k, v := range body.Params.(map[string]interface{}) {
+
+					vname := k
+					vval := v
+					vconf := handler.generaldb.Get("Variables", k)
+
+					if vconf == nil {
+
+						variables := handler.generaldb.GetAll("Variables")
+
+						for k, v := range variables {
+
+							if v.(map[string]interface{})["addr"].(string) == k {
+
+								vname = k
+								vconf = v
+								break
+							}
+						}
+					}
+
+					if vconf != nil {
+
+						params := make(map[string]interface{})
+						params[vname] = vval
+						body.Params = params
+
+						log.Debug("Will write variable to backend : " + vname)
+						log.Debug(vconf)
+
+						mes := jsonrpcmessage.NewRoutedMessage("rpc", body, "axihome", vconf.(map[string]interface{})["backend"].(string)+".backend.axihome")
+						*handler.sendChan <- *mes
+
+					} else {
+
+						log.Println("\x1b[31mCan't find variable definition for " + k + "\x1b[0m")
+					}
+				}
+			}()
+
+		case "getAll": // get RTDB content
+
+			go func() {
+
+				rtdbcontent := handler.rtdb.GetAll("RealtimeDB")
+				if rtdbcontent != nil {
+
+					body := &jsonrpcmessage.RpcBody{Module: "variables", Fct: "set", Params: rtdbcontent}
+
+					mes := jsonrpcmessage.NewRoutedMessage("rpc", body, "axihome", mes.Src)
+					*handler.sendChan <- *mes
+
+				} else {
+
+					log.Println("Can't read rtdb")
+				}
+
+			}()
+
+		case "generateRtdbMissingValues":
+
+			handler.generateRtdbMissingValues()
 		}
 
-	// Application variables managment - write variable (from app to backend)
-	case "variables.write":
+	} else if body.Module == "bucket" {
 
-		for k, v := range body.Params.(map[string]interface{}) {
+		switch body.Fct {
 
-			vconf := handler.generaldb.Get("Variables", k)
+		// Get variable from any bucket
+		case "getVar":
 
-			if vconf != nil {
+			params := body.Params.(map[string]interface{})
+			bname := params["bucket"].(string)
+			vname := params["variable"].(string)
 
-				params := make(map[string]interface{})
-				params[k] = v
-				body.Params = params
+			log.Println("Bucket variable requested : " + bname + " -> " + vname)
 
-				mes := jsonrpcmessage.NewRoutedMessage("rpc", body, "axihome", vconf.(map[string]interface{})["backend"].(string)+".backend.axihome")
+			bucketcontent := handler.bucketList[bname].Get(bname, vname)
+			if bucketcontent != nil {
+
+				p := make(map[string]interface{})
+				p["bucket"] = bname
+				p["variable"] = vname
+				p["value"] = bucketcontent
+
+				body := &jsonrpcmessage.RpcBody{Module: "bucket", Fct: "setVar", Params: p}
+
+				mes := jsonrpcmessage.NewRoutedMessage("rpc", body, "axihome", mes.Src)
 				*handler.sendChan <- *mes
 
 			} else {
 
-				log.Println("\x1b[31mCan't find variable definition for " + k + "\x1b[0m")
+				log.Println("Can't read bucket")
+			}
+
+		// Get all variable from any bucket
+		case "getAll":
+
+			bname := body.Params.(string)
+
+			log.Println("Full bucket requested : " + bname + " by " + mes.Src)
+
+			bucket := handler.bucketList[bname]
+			if bucket == nil {
+
+				log.Println("Can't find bucket " + bname)
+				return nil
+			}
+
+			bucketcontent := bucket.GetAll(bname)
+
+			if bucketcontent != nil {
+
+				p := make(map[string]interface{})
+				p["bucket"] = bname
+				p["content"] = bucketcontent
+
+				body := &jsonrpcmessage.RpcBody{Module: "bucket", Fct: "setAll", Params: p}
+
+				mes := jsonrpcmessage.NewRoutedMessage("rpc", body, "axihome", mes.Src)
+				*handler.sendChan <- *mes
+
+			} else {
+
+				log.Println("Can't read bucket")
+			}
+
+		// Set variable to any bucket
+		case "setVar":
+
+			params := body.Params.(map[string]interface{})
+			bname := params["bucket"].(string)
+			vname := params["variable"].(string)
+			vval := params["value"].(string)
+
+			log.Println("Bucket set variable requested : " + bname + " -> " + vname)
+
+			bucketcontent := handler.bucketList[bname].SetJson(bname, vname, vval)
+			if bucketcontent != nil {
+
+				log.Println("Variable set error")
+			}
+
+		// Set bucket content
+		case "setAll":
+
+			params := body.Params.(map[string]interface{})
+			bname := params["bucket"].(string)
+			content := []byte(params["content"].(string))
+
+			log.Println("Bucket setAll variable requested : " + bname)
+
+			handler.RegisterBucket(bname)
+
+			err := handler.bucketList[bname].SetAll(bname, content)
+			if err != nil {
+
+				log.Println("Variable setAll error")
+			} else {
+
+				p := make(map[string]interface{})
+				p["bucket"] = bname
+
+				body := &jsonrpcmessage.RpcBody{Module: "bucket", Fct: "setAllAck", Params: p}
+
+				mes := jsonrpcmessage.NewRoutedMessage("rpc", body, "axihome", mes.Src)
+				*handler.sendChan <- *mes
 			}
 		}
 
-	// Get RTDB content
-	case "variables.getAll":
+	} else if body.Module == "history" {
 
-		// Send realtime database
+		switch body.Fct {
 
-		rtdbcontent := handler.rtdb.GetAll("RealtimeDB")
-		if rtdbcontent != nil {
+		// Get variable from any bucket
+		case "get":
 
-			body := &jsonrpcmessage.RpcBody{Module: "variables", Fct: "set", Params: rtdbcontent}
+			params := body.Params.(map[string]interface{})
+			start := params["start"].(float64)
+			end := params["end"].(float64)
 
-			mes := jsonrpcmessage.NewRoutedMessage("rpc", body, "axihome", mes.Src)
-			*handler.sendChan <- *mes
+			startstr := strconv.FormatInt(int64(start), 10)
+			endstr := strconv.FormatInt(int64(end), 10)
 
-		} else {
+			//handler.historydb.
+			bucketcontent := handler.historydb.GetRange("History", startstr, endstr)
+			if bucketcontent != nil {
 
-			log.Println("Can't read rtdb")
+				p := make(map[string]interface{})
+				p["start"] = start
+				p["end"] = end
+				p["value"] = bucketcontent
+
+				body := &jsonrpcmessage.RpcBody{Module: "history", Fct: "set", Params: p}
+
+				mes := jsonrpcmessage.NewRoutedMessage("rpc", body, "axihome", mes.Src)
+				*handler.sendChan <- *mes
+
+			} else {
+
+				log.Println("Can't read bucket")
+			}
+
+		case "getDump":
 		}
-
-	case "variables.generateRtdbMissingValues":
-
-		handler.generateRtdbMissingValues()
-
-	/* Buckets */
-	/* ***************************************** */
-
-	// Get variable from any bucket
-	case "bucket.getVar":
-
-		params := body.Params.(map[string]interface{})
-		bname := params["bucket"].(string)
-		vname := params["variable"].(string)
-
-		log.Println("Bucket variable requested : " + bname + " -> " + vname)
-
-		bucketcontent := handler.bucketList[bname].Get(bname, vname)
-		if bucketcontent != nil {
-
-			p := make(map[string]interface{})
-			p["bucket"] = bname
-			p["variable"] = vname
-			p["value"] = bucketcontent
-
-			body := &jsonrpcmessage.RpcBody{Module: "bucket", Fct: "setVar", Params: p}
-
-			mes := jsonrpcmessage.NewRoutedMessage("rpc", body, "axihome", mes.Src)
-			*handler.sendChan <- *mes
-
-		} else {
-
-			log.Println("Can't read bucket")
-		}
-
-	// Get all variable from any bucket
-	case "bucket.getAll":
-
-		bname := body.Params.(string)
-
-		log.Println("Full bucket requested : " + bname + " by " + mes.Src)
-
-		bucketcontent := handler.bucketList[bname].GetAll(bname)
-
-		if bucketcontent != nil {
-
-			p := make(map[string]interface{})
-			p["bucket"] = bname
-			p["content"] = bucketcontent
-
-			body := &jsonrpcmessage.RpcBody{Module: "bucket", Fct: "setAll", Params: p}
-
-			mes := jsonrpcmessage.NewRoutedMessage("rpc", body, "axihome", mes.Src)
-			*handler.sendChan <- *mes
-
-		} else {
-
-			log.Println("Can't read bucket")
-		}
-
-	// Set variable to any bucket
-	case "bucket.setVar":
-
-		params := body.Params.(map[string]interface{})
-		bname := params["bucket"].(string)
-		vname := params["variable"].(string)
-		vval := params["value"].(string)
-
-		log.Println("Bucket set variable requested : " + bname + " -> " + vname)
-
-		bucketcontent := handler.bucketList[bname].SetJson(bname, vname, vval)
-		if bucketcontent != nil {
-
-			log.Println("Variable set error")
-		}
-
-	// Set bucket content
-	case "bucket.setAll":
-
-		params := body.Params.(map[string]interface{})
-		bname := params["bucket"].(string)
-		content := []byte(params["content"].(string))
-
-		log.Println("Bucket setAll variable requested : " + bname)
-
-		handler.RegisterBucket(bname)
-
-		err := handler.bucketList[bname].SetAll(bname, content)
-		if err != nil {
-
-			log.Println("Variable setAll error")
-		} else {
-
-			p := make(map[string]interface{})
-			p["bucket"] = bname
-
-			body := &jsonrpcmessage.RpcBody{Module: "bucket", Fct: "setAllAck", Params: p}
-
-			mes := jsonrpcmessage.NewRoutedMessage("rpc", body, "axihome", mes.Src)
-			*handler.sendChan <- *mes
-		}
-
-	default:
-
-		log.Println("Can't handler request : " + request + " in application")
 	}
 
 	return nil

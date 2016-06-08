@@ -48,7 +48,6 @@
 if ($_GET['key'] != "pfsense") die("invalidRequest");
 
 require("interfaces.inc");
-require("gwlb.inc");
 
 $a_gateways = return_gateways_array();
 $gateways_status = array();

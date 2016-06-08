@@ -23,8 +23,10 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"math"
+	"reflect"
 
 	"github.com/think-free/jsonrpc/client"
 	"github.com/think-free/jsonrpc/common/messages"
@@ -106,14 +108,20 @@ func main() {
 
 							variableToWrite := calcm["write"].(string)
 
-							res := fct.Call(calcm["formula"].(string), variableToWrite, v, calcm["params"])
+							res, err := fct.Call(calcm["formula"].(string), variableToWrite, v, calcm["params"])
 
-							if fct.Keyvaluemap[variableToWrite] != res {
+							if err == nil {
 
-								p := make(map[string]interface{})
-								p[variableToWrite] = res
+								if fct.Keyvaluemap[variableToWrite] != res {
 
-								jsontools.GenerateRpcMessage(&sendChannel, "variables", "set", p, "variablecalculation.core.axihome", "axihome")
+									p := make(map[string]interface{})
+									p[variableToWrite] = res
+
+									jsontools.GenerateRpcMessage(&sendChannel, "variables", "set", p, "variablecalculation.core.axihome", "axihome")
+								}
+							} else {
+
+								log.Println(err.Error())
 							}
 						}
 					}
@@ -124,7 +132,7 @@ func main() {
 }
 
 type Calcs struct {
-	fctmap      map[string]func(string, interface{}, interface{}) interface{}
+	fctmap      map[string]func(string, interface{}, interface{}) (interface{}, error)
 	Keyvaluemap map[string]interface{}
 }
 
@@ -134,7 +142,7 @@ func NewCalc() *Calcs {
 
 	c.Keyvaluemap = make(map[string]interface{})
 
-	c.fctmap = map[string]func(string, interface{}, interface{}) interface{}{
+	c.fctmap = map[string]func(string, interface{}, interface{}) (interface{}, error){
 
 		"PercentMinMax": c.PercentMinMax,
 		"IpxTC100":      c.IpxTC100,
@@ -147,12 +155,17 @@ func NewCalc() *Calcs {
 	return &c
 }
 
-func (c *Calcs) Call(fct, variableToWrite string, variable interface{}, params interface{}) interface{} {
+func (c *Calcs) Call(fct, variableToWrite string, variable interface{}, params interface{}) (interface{}, error) {
 
 	return c.fctmap[fct](variableToWrite, variable, params)
 }
 
-func (c *Calcs) PercentMinMax(variableToWrite string, variable interface{}, params interface{}) interface{} {
+func (c *Calcs) PercentMinMax(variableToWrite string, variable interface{}, params interface{}) (interface{}, error) {
+
+	if reflect.TypeOf(variable).Kind() != reflect.Float64 {
+
+		return 0, errors.New("Bad type for variable : " + variableToWrite)
+	}
 
 	pmap := params.(map[string]interface{})
 
@@ -179,54 +192,79 @@ func (c *Calcs) PercentMinMax(variableToWrite string, variable interface{}, para
 				ret = 100
 			}
 
-			return math.Floor(ret)
+			return math.Floor(ret), nil
 		}
 	}
 
 	if ret, ok := c.Keyvaluemap[variableToWrite]; ok {
 
-		return ret
+		return ret, nil
 	}
 
-	return 0
+	return 0, nil
 }
 
-func (c *Calcs) IpxTC100(variableToWrite string, variable interface{}, params interface{}) interface{} {
+func (c *Calcs) IpxTC100(variableToWrite string, variable interface{}, params interface{}) (interface{}, error) {
+
+	if reflect.TypeOf(variable).Kind() != reflect.Float64 {
+
+		return 0, errors.New("Bad type for variable : " + variableToWrite)
+	}
 
 	value := variable.(float64)
 	ret := ((value * 0.00323) - 0.25) / 0.028
 
-	return math.Floor(ret)
+	return math.Floor(ret), nil
 }
 
-func (c *Calcs) IpxTC4012(variableToWrite string, variable interface{}, params interface{}) interface{} {
+func (c *Calcs) IpxTC4012(variableToWrite string, variable interface{}, params interface{}) (interface{}, error) {
+
+	if reflect.TypeOf(variable).Kind() != reflect.Float64 {
+
+		return 0, errors.New("Bad type for variable : " + variableToWrite)
+	}
 
 	value := variable.(float64)
 	ret := (value * 0.323) - 50
 
-	return math.Floor(ret)
+	return math.Floor(ret), nil
 }
 
-func (c *Calcs) IpxTC5050(variableToWrite string, variable interface{}, params interface{}) interface{} {
+func (c *Calcs) IpxTC5050(variableToWrite string, variable interface{}, params interface{}) (interface{}, error) {
+
+	if reflect.TypeOf(variable).Kind() != reflect.Float64 {
+
+		return 0, errors.New("Bad type for variable : " + variableToWrite)
+	}
 
 	value := variable.(float64)
 	ret := ((value * 0.00323) - 1.63) / 0.0326
 
-	return math.Floor(ret)
+	return math.Floor(ret*10) / 10, nil
 }
 
-func (c *Calcs) IpxLights(variableToWrite string, variable interface{}, params interface{}) interface{} {
+func (c *Calcs) IpxLights(variableToWrite string, variable interface{}, params interface{}) (interface{}, error) {
+
+	if reflect.TypeOf(variable).Kind() != reflect.Float64 {
+
+		return 0, errors.New("Bad type for variable : " + variableToWrite)
+	}
 
 	value := variable.(float64)
 	ret := value * 0.09775
 
-	return math.Floor(ret)
+	return math.Floor(ret), nil
 }
 
-func (c *Calcs) IpxRH100(variableToWrite string, variable interface{}, params interface{}) interface{} {
+func (c *Calcs) IpxRH100(variableToWrite string, variable interface{}, params interface{}) (interface{}, error) {
+
+	if reflect.TypeOf(variable).Kind() != reflect.Float64 {
+
+		return 0, errors.New("Bad type for variable : " + variableToWrite)
+	}
 
 	value := variable.(float64)
 	ret := (((value * 0.00323) / 3.3) - 0.1515) / 0.00636
 
-	return math.Floor(ret)
+	return math.Floor(ret*10) / 10, nil
 }

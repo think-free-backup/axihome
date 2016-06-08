@@ -70,18 +70,20 @@ func main() {
 							TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 						}
 
+						client := &http.Client{Transport: tr}
+
 						for {
 
-							client := &http.Client{Transport: tr}
 							resp, err := client.Get("https://" + ip + "/status_gateways_json.php?key=pfsense&rates=1")
 							if err != nil {
 
 								log.Println("Error in http request")
-								time.Sleep(POOLINTERVAL * time.Second)
+
+								time.Sleep(time.Hour)
 								continue
 							}
-							defer resp.Body.Close()
 							body, err := ioutil.ReadAll(resp.Body)
+							resp.Body.Close()
 
 							bodyjson := make(map[string]interface{})
 
@@ -90,6 +92,8 @@ func main() {
 							if err != nil {
 
 								log.Println(err)
+
+								time.Sleep(time.Hour)
 							}
 
 							p := make(map[string]interface{})

@@ -1,0 +1,18 @@
+# /etc/systemd/system/iot6lowpan.service
+# systemctl enable iot6lowpan
+
+[Unit]
+Description=Iot6lowpan Sensor
+Wants=network-online.target
+After=network.target
+
+[Service]
+User=root
+Group=root
+WorkingDirectory=/srv/iot6lowpan
+ExecStart=/srv/iot6lowpan/iot6lowpan
+Restart=always
+StandardOutput=null
+
+[Install]
+WantedBy=multi-user.target

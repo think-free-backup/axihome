@@ -9,10 +9,10 @@ $( document ).ready(function() {
 
             if (data[k].ProcessRunning){
 
-                $("#list ul").append('<li><div class="name">' + data[k].Name +'</div> <div class="control running">Running <button type="button" onclick="stop(\'' + data[k].Backend + '\', \'' + data[k].Backend + '\')">Stop</button></div></li>');    
+                $("#list ul").append('<li><div class="name">' + data[k].Name +'</div> <div class="control running">Running <button type="button" onclick="stop(\'' + data[k].Backend + '\', \'' + data[k].Name + '\')">Stop</button></div></li>');    
             }else{
 
-                $("#list ul").append('<li><div class="name">' + data[k].Name +'</div> <div class="control stopped">Stopped <button type="button" onclick="start(\'' + data[k].Backend + '\', \'' + data[k].Backend + '\')">Start</button></div></li>');
+                $("#list ul").append('<li><div class="name">' + data[k].Name +'</div> <div class="control stopped">Stopped <button type="button" onclick="start(\'' + data[k].Backend + '\', \'' + data[k].Name + '\')">Start</button></div></li>');
             }
         }
     });

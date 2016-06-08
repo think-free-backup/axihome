@@ -27,7 +27,7 @@ func main() {
 	v2stateChannel := make(chan *jsonrpcmessage.StateBody)
 	v2rpcMessageChannel := make(chan *jsonrpcmessage.RpcMessage)
 
-	v2client := jsonrpclient.New("v2bridge", "172.16.11.11", "2015", v2sendChannel, v2stateChannel, v2rpcMessageChannel, nil, nil)
+	v2client := jsonrpclient.New("v2bridge", "localhost", "2015", v2sendChannel, v2stateChannel, v2rpcMessageChannel, nil, nil)
 	go v2client.Run()
 
 	// Create the v3 client

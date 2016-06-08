@@ -1,0 +1,4 @@
+- Put the svox-pico folder to /opt (the tar.gz provided is for raspberrypi)
+- Put voicenotifier in /srv/voicenotifier/voicenotifier
+- Put the .service to /etc/systemd/system/voicenotifier.service
+- systemctl enable voicenotifier

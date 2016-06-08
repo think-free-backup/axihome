@@ -1,0 +1,28 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+        compatible = "bcrm,bcm2708";
+
+        fragment@0 {
+                target = <&spi0>;
+                __overlay__ {
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+                        status = "okay";
+
+                        mrf24j40@0 {
+                                status = "okay";
+                                compatible = "mrf24j40";
+                                spi-max-frequency = <5000000>;
+                                reg = <0>;
+                                interrupts = <22 0x8>;
+                                interrupt-parent = <&gpio>;
+                        };
+
+                        spidev@0 {
+                                status = "disabled";
+                        };
+                };
+        };
+};

@@ -8,6 +8,16 @@
 
 The server is divided in various process and comunicate with a custom json protocol over tcp or websocket
 
+Dependencies
+-----------------------------------------------------
+
+You don't have to download theses dependencies manualy, use go get github.com/think-free/axihome instead it will download everything needed to run the project
+
+github.com/boltdb/bolt                  
+github.com/remyoudompheng/go-misc/zipfs 
+golang.org/x/net/websocket              
+github.com/eternnoir/gotelebot          
+
 Main process
 -----------------------------------------------------
 

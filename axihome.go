@@ -2,7 +2,7 @@ package main
 
 import (
 	"flag"
-	"fmt"
+
 	"os"
 	"os/signal"
 	"syscall"
@@ -13,30 +13,35 @@ import (
 	"github.com/think-free/log"
 )
 
-const version = "0.2"
+const version = "0.3"
 
 func main() {
 
 	debug := flag.Bool("d", false, "-d for debug info")
+
+	dev := flag.Bool("dev", false, "-dev for devel mode")
+	configPath := flag.String("c", ".", "-c to specify config path")
 	flag.Parse()
 	log.SetDebug(*debug)
+	log.SetProcess("axihome")
 
-	fmt.Println("")
-	fmt.Println("Starting axihome server v" + version)
-	fmt.Println("-----------------------------")
-	fmt.Println("")
+	log.Println("")
+	log.Println("Starting axihome server v" + version)
+	log.Println("-----------------------------")
+	log.Println("")
 
 	if *debug {
 
-		fmt.Println("Debug mode activated")
+		log.Println("Debug mode activated")
 	}
 
 	// Starting server
-	server := axihomeserver.New()
+	server := axihomeserver.New(*configPath)
 	go server.Run()
 
 	// Starting instance manager
-	im := instancesmanager.New()
+	im := instancesmanager.New(*dev)
+
 	go im.Run()
 
 	// Handle ctrl+c and exit signals
@@ -46,7 +51,9 @@ func main() {
 	for {
 		select {
 		case _ = <-c:
-			fmt.Println("\nClosing application")
+
+			log.Println("\nClosing application")
+
 			os.Exit(1)
 		}
 	}
