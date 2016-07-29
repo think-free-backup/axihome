@@ -12,7 +12,7 @@ import (
 	"github.com/think-free/log"
 )
 
-const version = "0.3"
+const version = "0.4"
 
 func main() {
 
