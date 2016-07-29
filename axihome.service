@@ -10,9 +10,7 @@ After=network.target
 User=root
 Group=root
 WorkingDirectory=/srv/axihome
-
 ExecStart=/srv/axihome/bin/axihome -c /etc/axihome/config
-
 Restart=always
 StandardOutput=null
 

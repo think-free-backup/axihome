@@ -1,7 +1,6 @@
 #!/bin/bash
 
 GOA="amd64"
-
 GOBINLOC="$GOPATH/bin"
 SPECIFIC=0
 
@@ -44,6 +43,8 @@ build $GOA axihome backends/weather/weather.go
 build $GOA axihome backends/fitbit/fitbit.go
 build $GOA axihome backends/ipx800/ipx800.go
 build $GOA axihome backends/dgtpanel/dgtpanel.go
+build $GOA axihome core/historic/historic.go
+build $GOA axihome core/chart/chart.go
 build $GOA axihome core/notification/notification.go
 build $GOA axihome core/variablesnotification/variablesnotification.go
 build $GOA axihome core/variablebinding/variablebinding.go
@@ -52,6 +53,7 @@ build $GOA axihome core/wearablegw/wearablegw.go
 build $GOA axihome core/acond/acond.go
 build $GOA axihome core/variabletimer/variabletimer.go
 build $GOA axihome core/scheduler/scheduler.go
+build $GOA axihome core/tschecker/tschecker.go
 build $GOA axihome tools/axdbManager.go
 build $GOA axihome tools/axwrite.go
 build $GOA axihome tools/axset.go

@@ -1,58 +1,105 @@
 
-------------------------------------------------------------------------------
 
-# Axihome 3
+### Axihome 3
 
-------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------
 
 
-The server is divided in various process and comunicate with a custom json protocol over tcp or websocket
+Axihome is a home automation / iot solution written entirely in Go and developped initialy for my personal use.
+It can run on any linux platform (windows not tested) but the main architecture is a raspberry pi (2 or +)
+I have it drinving the lights, shutters, pool (motor, temperature, uv index, lights), heating, fitbit integration, custom smartmirror, custom smartalarmclock, room temperature, humidity, ...
 
-Dependencies
+
+Introduction
 -----------------------------------------------------
 
-You don't have to download theses dependencies manualy, use go get github.com/think-free/axihome instead it will download everything needed to run the project
+The server is divided in various process and comunicate with a custom json protocol over tcp or websocket.   
+It is divided in three parts :
 
-github.com/boltdb/bolt                  
-github.com/remyoudompheng/go-misc/zipfs 
-golang.org/x/net/websocket              
-github.com/eternnoir/gotelebot          
+- The core server (TCP : 3330, WS : 3331) : for core components like notifications managment, smartheating, cronjobs, acond, ... Every process in the core receive the variable change message.
+- The backend server (TCP : 3332, WS : 3333) : clients of the backend server are responsible of gatering data of differents sources like the ipx800, x10modules, waze, yahoo weather, ...
+- The frontend server (TCP : 3334, WS : 3335) : graphical clients connect to this server. Every process in the frontend receive the variable change message and the client configuration message.
 
-Main process
+
+Quick start
 -----------------------------------------------------
 
-The main process of the application create 3 diferents json servers :
+- Download release .run and execute it on a raspbian image
+- Create a Instances.json and a Variables.json file
+- go to /etc/axihome
+- Run ./config/importer.sh path to your config folder
 
-- The core server : for core components like notifications managment, smartheating, cronjobs, acond, ... Every process in the core receive the variable change message
-- The backend server : clients of the backend server are responsible of gatering data of differents sources like the ipx800, x10modules, waze, yahoo weather, ...
-- The frontend server : graphical clients connect to this server. Every process in the frontend receive the variable change message and the client configuration message
+Minimal config files
+-----------------------------------------------------
 
-The main process is also responsible of the life of all the others processes you can connect to http://serverip:3340 to see the running process, to start/stop/restart them. To have the state in json format you can request http://serverip:3340/getstate and to start/stop/restart process with direct request to : http://serverip:3340/start?process=name&instance=name
-
-The configuration is defined like this (Instances.json) :
+Config.json
 
     {
-        "notification" : {
-            "name" : "notification",
-            "backend" : "notification",
+        "buckets" : []
+    }
+
+Instances.json
+
+    {
+        "time" : {
+            "name" : "time",
+            "backend" : "time",
+            "params" : {},
+            "run" : true
+        },    
+        "historic" : {
+            "name" : "historic",
+            "backend" : "historic",
+            "params" : {},
+            "run" : true
+        },
+        "chart" : {
+            "name" : "chart",
+            "backend" : "chart",
             "params" : {},
             "run" : true
         }
     }
 
-Currently is also manage all the databases (configuration, variables, historic) but this part will be moved to a core process in the future
+Variables.json
 
-Data core process (for now it's the main process)
+    {
+        "server.time" : { "addr" : "", "shortname" : "", "name" : "", "backend": "time", "type" : "float64", "default" : null, "analog" : false },
+    }
+    
+Processes managment
 -----------------------------------------------------
 
-The variable list is defined like this (Variables.json) : 
+The main process is responsible of managing all the others processes.   
+You can connect to the manager at http://serverip:3340
 
-{
-    "variablename" : { "shortname" : "", "name" : "", "backend": "backendname", "type" : "float64", "analog" : true }
-}
+Core and backend processes are defined in Instances.json
 
-With variablename = the name of the variable coming from the backend process, and backendname the instance name of the backend.
-Analog variables are saved in historic every 5 minutes digital are saved on change and a full rtdb dump is saved every hours.
+
+Variables definition
+-----------------------------------------------------
+
+    {
+        "variablename" : { "addr" : "", "shortname" : "", "name" : "", "backend": "backendname", "type" : "string|float64|bool", "default" : null, "analog" : false }
+    }
+
+- The variable name is the name used in the frontend and the core
+- The addr is the name used in the backend (usefull if you want to rename a backend variable for your frontend). If blank it use the variablename instead (faster).
+- Backend is the process name of the backend 
+- Type : you only have 3 types availables : string, float64 and bool
+- Default : default value on clean startup (if you have no rtdb)
+- Analog : used for historic database : false -> write on change, true -> write every 5 minutes
+
+
+Developping core or backend processes
+-----------------------------------------------------
+
+- go get github.com/think-free/axihome
+- run build.sh from your GOPATH
+- run package.sh from your GOPATH if you have makeself installed
+
+The fastest way to devellop a core/backend process is to lock at an existing one, they are small, self contained.   
+You have to know some rules :
 
 __Backend processes call variables.set to write a variable__
 
@@ -78,53 +125,15 @@ __To set the content of a bucket (bucket content will be erased)__
 
     jsontools.GenerateRpcMessage(&sendChannel, "bucket", "setAll", {"bucket" : "BucketName", "content" : {"key" : "value"}}, "mydomain", "axihome")
 
-
-
-Notification core process
+Roadmap
 -----------------------------------------------------
 
-This process is responsible of sending notification to subscribed devices. For now it support telegram and a custom tts system (called say) accessible by REST calls.
-
-__NotificationGeneral.json__
-
-This is the general configuration for notifications
-
-    {
-        "telegram" : "telegram bot key",
-        "say" : null
-    }
-
-__NotificationMessages.json__
-
-This is the messages definition for notifications
-
-    {
-        "messagename" : {"shortText" : "", "mediumText" : "", "largeText" : "", "sound" : "", "image" : "", "url" : ""}
-    }
-
-__NotificationDevices.json__
-
-All the devices ables to receive notifications
-
-    {
-        "devicename" : {"notifier": "say", "desc" : "First say device", "url" : "192.168.1.2"}
-    }
-
-__NotificationMessagesSubscriptions.json__
-
-Subscriptions for messages
-
-    {
-        "messagename" : [ {"dev": "devicename", "type" : "mediumText", "active" : "booleanvariablename"} ]
-    }
-
-To send a notification use the call : jsontools.GenerateRpcMessage(sendChannel, "notifier", "send", "messagename", "mydomain", "notification.core.axihome")
-
-Variables notifications core process
------------------------------------------------------
-
-This process send a notification if the variablename's value respect the condition. Conditions are : >, >=, =, <=, <, !=
-
-    {
-        "variablename" : [{"cond" : "!=", "val" : "conditionvalue", "notif" : "messagename"}]
-    }
+- Separation of the main application from the core process was great at the beginning of the development for stability but as the application grow and more you have variables changing, it become a bottle neck. One big change would be to integrate all the funcionalities of the core processes in the main executable.
+- Another big change would be the implementation of variables subscriptions, as for now every clients (and core processes) are receiving every changes
+- A web interface for easy configuration would be a big win.
+- Documentation
+- Documentation
+- Documentation
+- Documentation
+- Documentation
+- ...

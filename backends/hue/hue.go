@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	SERVERIP     = "172.16.11.21"
+	SERVERIP     = "localhost"
 	SERVERPORT   = "3332"
 	SERVERNAME   = "axihome"
 	POOLINTERVAL = 5

@@ -1,4 +1,0 @@
-{
-    "Tg_USER" : {"notifier": "telegram", "desc" : "Telegram USER", "url" : "CHAT-ID"},
-    "media" : {"notifier": "say", "desc" : "Sound", "url" : "192.168.1.1"}
-}

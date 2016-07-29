@@ -33,11 +33,11 @@ type Weather struct {
 	Dt   int `json:"dt"`
 	ID   int `json:"id"`
 	Main struct {
-		Humidity int `json:"humidity"`
-		Pressure int `json:"pressure"`
-		Temp     int `json:"temp"`
-		TempMax  int `json:"temp_max"`
-		TempMin  int `json:"temp_min"`
+		Humidity int     `json:"humidity"`
+		Pressure int     `json:"pressure"`
+		Temp     float64 `json:"temp"`
+		TempMax  float64 `json:"temp_max"`
+		TempMin  float64 `json:"temp_min"`
 	} `json:"main"`
 	Name string `json:"name"`
 	Sys  struct {
@@ -132,6 +132,7 @@ func main() {
 						if err != nil {
 
 							log.Println("Error unmarshalling json")
+							log.Println(string(body))
 							time.Sleep(time.Hour)
 							continue
 						}

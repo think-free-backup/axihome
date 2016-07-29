@@ -1,8 +1,7 @@
 package axihomehandler
 
 import (
-	"encoding/json"
-	"strconv"
+	"sync"
 	"time"
 
 	"github.com/think-free/axihome/server/variablemanager"
@@ -11,20 +10,24 @@ import (
 )
 
 type Handler struct {
-	generaldb *variablemanager.VariableManager
-	rtdb      *variablemanager.VariableManager
-	historydb *variablemanager.VariableManager
+	database *variablemanager.VariableManager
+	rtdb     *variablemanager.VariableManager
 
-	bucketList map[string]*variablemanager.VariableManager
-	sendChan   *chan jsonrpcmessage.RoutedMessage
-	analogic   map[string]interface{}
-
-	mapping map[string]string
+	bucketList   map[string]*variablemanager.VariableManager
+	sendChan     *chan jsonrpcmessage.RoutedMessage
+	analogic     map[string]interface{}
+	mapping      map[string]string
+	history      *variablemanager.HistoryManager
+	analogicLock *sync.Mutex
 }
 
 func New(sendChan *chan jsonrpcmessage.RoutedMessage, configPath string) *Handler {
 
 	appHandler := &Handler{}
+
+	// Creating mutex
+
+	appHandler.analogicLock = &sync.Mutex{}
 
 	// Bucket registration
 
@@ -32,13 +35,13 @@ func New(sendChan *chan jsonrpcmessage.RoutedMessage, configPath string) *Handle
 
 	// Create  db and buckets
 
-	vmgeneraldb := variablemanager.New(configPath + "/axihome.db")
-	appHandler.generaldb = vmgeneraldb
+	vmdatabase := variablemanager.New(configPath + "/axihome.db")
+	appHandler.database = vmdatabase
 	appHandler.RegisterBucket("Variables")
 	appHandler.RegisterBucket("VariablesAddrMapping")
-
 	appHandler.RegisterBucket("Instances")
 	appHandler.RegisterBucket("Config")
+	appHandler.history = variablemanager.NewHistory("http://localhost:7777/")
 
 	// TODO : Following bucket should come from config and shouldn't be hardcoded here
 
@@ -59,72 +62,28 @@ func New(sendChan *chan jsonrpcmessage.RoutedMessage, configPath string) *Handle
 	// Realtime database
 
 	vmrtdb := variablemanager.New(configPath + "/axihome-rtdb.db")
-
 	appHandler.rtdb = vmrtdb
 
 	vmrtdb.CreateBucket("RealtimeDB")
 	appHandler.bucketList["RealtimeDB"] = vmrtdb
 
-	// Historic database
-
-	vmhistorydb := variablemanager.New(configPath + "/axihome-history.db")
-
-	appHandler.historydb = vmhistorydb
-
-	vmhistorydb.CreateBucket("History")
-	appHandler.bucketList["History"] = vmhistorydb
-
-	vmhistorydb.CreateBucket("HistoryRtdbDump")
-	appHandler.bucketList["HistoryRtdbDump"] = vmhistorydb
-
 	// Save analog and full rtdb dump in history
 
 	analogTicker := time.NewTicker(time.Minute * 5).C
-	fullDbTicker := time.NewTicker(time.Hour).C
+
 	go func() {
 		for {
 			select {
 			case <-analogTicker:
 
 				log.Println("Saving analog variables in historic")
-				now := strconv.FormatInt(time.Now().Unix(), 10)
 
+				appHandler.analogicLock.Lock()
 				for k, v := range appHandler.analogic {
 
-					historyvar := make(map[string]interface{})
-					historyvar["Key"] = k
-					historyvar["Value"] = v
-
-					err := appHandler.historydb.Set("History", now, historyvar)
-					if err != nil {
-
-						log.Println("Can't save history :", now, "->", historyvar)
-					}
+					appHandler.history.Save(k, v)
 				}
-
-			case <-fullDbTicker:
-
-				rtdbcontent := appHandler.rtdb.GetAll("RealtimeDB")
-				if rtdbcontent != nil {
-
-					js, _ := json.Marshal(rtdbcontent)
-
-					log.Println("Saving rtdb dump in historic")
-					now := strconv.FormatInt(time.Now().Unix(), 10)
-
-					err := appHandler.historydb.Set("HistoryRtdbDump", now, js)
-					if err != nil {
-
-						log.Println("Can't save history :", now, "->", js)
-					} else {
-
-						log.Println(string(js))
-					}
-
-				} else {
-
-					log.Println("Can't read rtdb")
-				}
+				appHandler.analogicLock.Unlock()
 			}
 		}
 	}()
@@ -137,7 +96,6 @@ func New(sendChan *chan jsonrpcmessage.RoutedMessage, configPath string) *Handle
 	// Generated RTDB
 
 	appHandler.generateRtdbMissingValues()
-
 	appHandler.generateKeyAddrMapping()
 
 	// Return the Handler
@@ -150,15 +108,15 @@ func New(sendChan *chan jsonrpcmessage.RoutedMessage, configPath string) *Handle
 
 func (handler *Handler) RegisterBucket(name string) {
 
-	handler.generaldb.CreateBucket(name)
-	handler.bucketList[name] = handler.generaldb
+	handler.database.CreateBucket(name)
+	handler.bucketList[name] = handler.database
 }
 
 func (handler *Handler) generateRtdbMissingValues() {
 
 	log.Println("Generating default value for rtdb")
 
-	variablesbucketcontent := handler.generaldb.GetAll("Variables")
+	variablesbucketcontent := handler.database.GetAll("Variables")
 	rtdbcontent := handler.rtdb.GetAll("RealtimeDB")
 
 	if variablesbucketcontent != nil {
@@ -227,8 +185,6 @@ func (handler *Handler) Rpc(mes jsonrpcmessage.RoutedMessage) error {
 
 				log.Debug("Variable set request")
 
-				now := strconv.FormatInt(time.Now().Unix(), 10)
-
 				if body.Params == nil {
 					return
 				}
@@ -236,7 +192,7 @@ func (handler *Handler) Rpc(mes jsonrpcmessage.RoutedMessage) error {
 				for k, v := range body.Params.(map[string]interface{}) {
 
 					vname := handler.mapping[k]
-					vconf := handler.generaldb.Get("Variables", vname)
+					vconf := handler.database.Get("Variables", vname)
 
 					if vconf == nil {
 
@@ -265,18 +221,13 @@ func (handler *Handler) Rpc(mes jsonrpcmessage.RoutedMessage) error {
 
 					if !vconf.(map[string]interface{})["analog"].(bool) {
 
-						historyvar := make(map[string]interface{})
-						historyvar["Key"] = vname
-						historyvar["Value"] = v
+						handler.history.Save(vname, v)
 
-						err := handler.historydb.Set("History", now, historyvar)
-						if err != nil {
-
-							log.Println("Can't save history :", now, "->", historyvar)
-						}
 					} else {
 
+						handler.analogicLock.Lock()
 						handler.analogic[vname] = v
+						handler.analogicLock.Unlock()
 					}
 
 					log.Debug("Variable set " + vname + " saved")
@@ -292,11 +243,11 @@ func (handler *Handler) Rpc(mes jsonrpcmessage.RoutedMessage) error {
 
 					vname := k
 					vval := v
-					vconf := handler.generaldb.Get("Variables", k)
+					vconf := handler.database.Get("Variables", k)
 
 					if vconf == nil {
 
-						variables := handler.generaldb.GetAll("Variables")
+						variables := handler.database.GetAll("Variables")
 
 						for k, v := range variables {
 
@@ -458,41 +409,6 @@ func (handler *Handler) Rpc(mes jsonrpcmessage.RoutedMessage) error {
 			}
 		}
 
-	} else if body.Module == "history" {
-
-		switch body.Fct {
-
-		// Get variable from any bucket
-		case "get":
-
-			params := body.Params.(map[string]interface{})
-			start := params["start"].(float64)
-			end := params["end"].(float64)
-
-			startstr := strconv.FormatInt(int64(start), 10)
-			endstr := strconv.FormatInt(int64(end), 10)
-
-			//handler.historydb.
-			bucketcontent := handler.historydb.GetRange("History", startstr, endstr)
-			if bucketcontent != nil {
-
-				p := make(map[string]interface{})
-				p["start"] = start
-				p["end"] = end
-				p["value"] = bucketcontent
-
-				body := &jsonrpcmessage.RpcBody{Module: "history", Fct: "set", Params: p}
-
-				mes := jsonrpcmessage.NewRoutedMessage("rpc", body, "axihome", mes.Src)
-				*handler.sendChan <- *mes
-
-			} else {
-
-				log.Println("Can't read bucket")
-			}
-
-		case "getDump":
-		}
 	}
 
 	return nil

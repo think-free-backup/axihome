@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-
 	"os"
 	"os/signal"
 	"syscall"
@@ -18,7 +17,6 @@ const version = "0.3"
 func main() {
 
 	debug := flag.Bool("d", false, "-d for debug info")
-
 	dev := flag.Bool("dev", false, "-dev for devel mode")
 	configPath := flag.String("c", ".", "-c to specify config path")
 	flag.Parse()
@@ -41,7 +39,6 @@ func main() {
 
 	// Starting instance manager
 	im := instancesmanager.New(*dev)
-
 	go im.Run()
 
 	// Handle ctrl+c and exit signals
@@ -51,9 +48,7 @@ func main() {
 	for {
 		select {
 		case _ = <-c:
-
 			log.Println("\nClosing application")
-
 			os.Exit(1)
 		}
 	}

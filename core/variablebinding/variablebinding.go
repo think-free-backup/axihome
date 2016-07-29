@@ -178,6 +178,7 @@ func main() {
 
 											p := make(map[string]interface{})
 											p[action.variable] = action.value
+
 											jsontools.GenerateRpcMessage(&sendChannel, "variables", "write", p, "variablebinding.core.axihome", "axihome")
 										}
 									}

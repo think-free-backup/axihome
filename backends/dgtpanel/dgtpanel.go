@@ -100,6 +100,9 @@ func main() {
 
 							for {
 
+								radar := false
+								distance := false
+
 								params := make(map[string]interface{})
 
 								for _, pan := range panels {
@@ -124,11 +127,35 @@ func main() {
 										continue
 									}
 
-									params[instance+"."+pan.(string)+".message.1"] = getString(reg, panel.Mensaje1)
-									params[instance+"."+pan.(string)+".message.2"] = getString(reg, panel.Mensaje2)
+									m1 := getString(reg, panel.Mensaje1)
+									m2 := getString(reg, panel.Mensaje2)
+
+									params[instance+"."+pan.(string)+".message.1"] = m1
+									params[instance+"."+pan.(string)+".message.2"] = m2
+
+									if strings.Contains(m1, "CONTROL MOVIL") || strings.Contains(m2, "CONTROL MOVIL") {
+										radar = true
+									}
+
+									if strings.Contains(m1, "CONTROL DISTANCIA") || strings.Contains(m2, "CONTROL DISTANCIA") {
+										distance = true
+									}
 
 									log.Println(instance + "." + pan.(string) + ".message.1 : " + pan.(string) + " : " + params[instance+"."+pan.(string)+".message.1"].(string))
 									log.Println(instance + "." + pan.(string) + ".message.2 : " + pan.(string) + " : " + params[instance+"."+pan.(string)+".message.2"].(string))
+								}
+
+								params[instance+".alert.radar"] = radar
+								params[instance+".alert.distance"] = distance
+
+								if radar {
+
+									log.Println("Control radar movil")
+								}
+
+								if distance {
+
+									log.Println("Control distance securite")
 								}
 
 								jsontools.GenerateRpcMessage(&sendChannel, "variables", "set", params, instance+".backend.axihome", "axihome")

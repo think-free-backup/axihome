@@ -1,7 +1,0 @@
-{
-    "heating.deposit.percent" :  [
-    
-        {"cond" : "<", "val" : "heating.deposit.alarm.low", "actions" : [{"active" : "bool.binding.heating.deposit.alarm.calculate", "var" : "heating.deposit.alarm", "value" : true}]},
-        {"cond" : ">", "val" : "heating.deposit.alarm.hight", "actions" : [{"active" : "bool.binding.heating.deposit.alarm.calculate", "var" : "heating.deposit.alarm", "value" : false}]}
-    ]
-}

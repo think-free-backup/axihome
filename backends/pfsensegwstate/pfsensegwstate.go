@@ -78,7 +78,6 @@ func main() {
 							if err != nil {
 
 								log.Println("Error in http request")
-
 								time.Sleep(time.Hour)
 								continue
 							}
@@ -92,7 +91,6 @@ func main() {
 							if err != nil {
 
 								log.Println(err)
-
 								time.Sleep(time.Hour)
 							}
 

@@ -1,0 +1,11 @@
+{
+	"ServerIp"         :  "172.16.11.21",
+	"ServerPort"       :  "3334",
+	"ServerName"       :  "axihome",
+	"ClientName"       :  "mirrorhelper",
+	"ButtonGpio"       :  18,
+	"ButtonVariable"   :  "bathroom.mirror.button.pressed",
+	"MotionFileWatch"  :  "/tmp",
+	"MotionVariable"   :  "bathroom.mirror.motion.detected",
+	"ScreenOnVariable" :  "bathroom.mirror.active"
+}

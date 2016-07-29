@@ -1,0 +1,18 @@
+# /etc/systemd/system/publicip2telegram.service
+# systemctl enable publicip2telegram
+
+[Unit]
+Description=Send public ip to telegram
+Wants=network-online.target
+After=network.target
+
+[Service]
+User=root
+Group=root
+WorkingDirectory=/srv/publicip2telegram
+ExecStart=/srv/publicip2telegram/publicip2telegram -key #PLACE YOUR KEY HERE# -chatId #PLACE THE CHATID HERE#
+Restart=always
+StandardOutput=null
+
+[Install]
+WantedBy=multi-user.target

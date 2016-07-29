@@ -39,7 +39,6 @@ func New(dev bool) *InstanceManager {
 	var im *InstanceManager = &InstanceManager{}
 
 	im.develMode = dev
-
 	im.sendChannel = make(chan []byte)
 	im.stateChannel = make(chan *jsonrpcmessage.StateBody)
 	im.rpcMessageChannel = make(chan *jsonrpcmessage.RpcMessage)
@@ -62,7 +61,6 @@ func (im *InstanceManager) Run() {
 	http.HandleFunc("/restart", im.restarthandler)
 	http.HandleFunc("/reload", im.reloadhandler)
 	http.HandleFunc("/stats", im.statsHandler)
-
 	http.ListenAndServe(":3340", nil)
 }
 
@@ -87,7 +85,6 @@ func (im *InstanceManager) channelHandler() {
 					if im.instances == nil {
 
 						im.instances = make(InstanceMap)
-
 					} else {
 						return
 					}
@@ -230,12 +227,11 @@ func (im *InstanceManager) startProcess(process, instance string) {
 			case err := <-done:
 
 				log.Println("Process : " + process + " stopped")
+				log.Println("    |-> desactivating process for 10 minutes")
 				if err != nil {
-					log.Println("    |-> with error :", err)
-
-					log.Println("    |-> desactivating process for 10 minutes")
-					time.Sleep(10 * time.Minute)
+					log.Println("    |-> process stopped with error :", err)
 				}
+				time.Sleep(10 * time.Minute)
 			}
 		}
 

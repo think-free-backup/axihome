@@ -10,6 +10,7 @@ import (
 
 	"github.com/think-free/axihome/apps/iot6lowpan/sensors/ds18b20"
 	"github.com/think-free/axihome/apps/iot6lowpan/sensors/gateway"
+	"github.com/think-free/axihome/apps/iot6lowpan/sensors/si1145"
 	"github.com/think-free/jsonrpc/client"
 	"github.com/think-free/jsonrpc/common/tools"
 )
@@ -43,6 +44,10 @@ func main() {
 	json.Unmarshal(content, &config)
 
 	// Sensors
+	if config["si1145"].Run {
+		go si1145.Run(&c, config["si1145"].Params)
+	}
+
 	if config["ds18b20"].Run {
 		go ds18b20.Run(&c, config["ds18b20"].Params)
 	}

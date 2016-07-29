@@ -1,7 +1,0 @@
-{
-    "Type" : "backend",
-    "MultiInstances" : false,
-    "InstancesParams" : {},
-    "ConfigFiles" : [],
-    "Note" : ""
-}
